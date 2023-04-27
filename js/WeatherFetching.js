@@ -30,36 +30,34 @@ function guessZipCode(){
 }
 
 function fetchAlerts(){
-  // Skip alert fetching until replaced with TWC (wunderground api dead)
-  fetchForecast();
-  return;
-
   var alertCrawl = "";
-  // again, always use wunderground for fetching alerts
-  // two api calls are required for one alert
-  // one: GET v1/alerts
-  //        this gets all the alerts issued
-  // two: GET v1/alert/:detailKey/details.json
-  //        this gets the details of the alert
-  // will think of a solution later
-  // TODO: Use v1/alerts and v1/alert to grab alerts from TWC
-  fetch(`https://api.wunderground.com/api/${CONFIG.secrets.wundergroundAPIKey}/alerts/q/${zipCode}.json`)
+  fetch(`https://api.weather.gov/alerts/active?point=${latitude},${longitude}`)
     .then(function(response) {
       if (response.status !== 200) {
         console.log("forecast request error");
         return;
       }
       response.json().then(function(data) {
-        for(var i = 0; i < data.alerts.length; i++){
-          /* Take the most important alert message and set it as crawl text
-           This will supply more information i.e. tornado warning coverage */
-          alertCrawl = alertCrawl + " " + data.alerts[i].message.replace("...", "");
-
-          // ignore special weather statements
-          if(data.alerts[i].type == "SPE"){
-            continue;
+        if (data.features == undefined){
+          fetchForecast();
+          return;
+        }
+        if (data.features.length == 1) {
+          alerts[0] = data.features[0].properties.event + '<br>' + data.features[0].properties.description.replace("..."," ").replace(/\*/g, "")
+          for(var i = 0; i < data.features.length; i++){
+            /* Take the most important alert message and set it as crawl text
+            This will supply more information i.e. tornado warning coverage */
+            alertCrawl = alertCrawl + " " + data.features[i].properties.description.replace("...", " ");
           }
-          alerts[i] = data.alerts[i].message.replace("...", "").split("...", 1)[0].split("*", 1)[0].split("for", 1)[0].replace(/\n/g, " ").replace("...", "").toUpperCase();
+        }
+        else {
+          for(var i = 0; i < data.features.length; i++){
+            /* Take the most important alert message and set it as crawl text
+            This will supply more information i.e. tornado warning coverage */
+            alertCrawl = alertCrawl + " " + data.features[i].properties.description.replace("...", " ");
+
+            alerts[i] = data.features[i].properties.event
+          }
         }
         if(alertCrawl != ""){
           CONFIG.crawl = alertCrawl;
@@ -158,22 +156,79 @@ function fetchCurrentWeather(){
 }
 
 function fetchRadarImages(){
-  // Skip radar until replaced with some other solution (wunderground api dead)
-  scheduleTimeline();
-  return;
-
-  radarImage = new Image();
+  radarImage = document.createElement("iframe");
   radarImage.onerror = function () {
     getElement('radar-container').style.display = 'none';
   }
-  radarImage.src = `https://api.wunderground.com/api/${CONFIG.secrets.wundergroundAPIKey}/animatedradar/q/MI/${zipCode}.gif?newmaps=1&timelabel=1&timelabel.y=10&num=5&delay=10&radius=100&num=15&width=1235&height=525&rainsnow=1&smoothing=1&noclutter=1`;
 
+  mapSettings = btoa(JSON.stringify({
+    "agenda": {
+      "id": "weather",
+      "center": [longitude, latitude],
+      "location": null,
+      "zoom": 8
+    },
+    "animating": true,
+    "base": "standard",
+    "artcc": false,
+    "county": false,
+    "cwa": false,
+    "rfc": false,
+    "state": false,
+    "menu": false,
+    "shortFusedOnly": false,
+    "opacity": {
+      "alerts": 0.0,
+      "local": 0.0,
+      "localStations": 0.0,
+      "national": 0.6
+    }
+  }));
+  radarImage.setAttribute("src", "https://radar.weather.gov/?settings=v1_" + mapSettings);
+  radarImage.style.width = "1230px"
+  radarImage.style.height = "740px"
+  radarImage.style.marginTop = "-220px"
+  radarImage.style.overflow = "hidden"
+  
   if(alertsActive){
     zoomedRadarImage = new Image();
     zoomedRadarImage.onerror = function () {
       getElement('zoomed-radar-container').style.display = 'none';
     }
-    zoomedRadarImage.src = `https://api.wunderground.com/api/${CONFIG.secrets.wundergroundAPIKey}/animatedradar/q/MI/${zipCode}.gif?newmaps=1&timelabel=1&timelabel.y=10&num=5&delay=10&radius=50&num=15&width=1235&height=525&rainsnow=1&smoothing=1&noclutter=1`;
+
+    zoomedRadarImage = document.createElement("iframe");
+    zoomedRadarImage.onerror = function () {
+      getElement('zoomed-radar-container').style.display = 'none';
+    }
+  
+    mapSettings = btoa(JSON.stringify({
+      "agenda": {
+        "id": "weather",
+        "center": [longitude, latitude],
+        "location": null,
+        "zoom": 10
+      },
+      "animating": true,
+      "base": "standard",
+      "artcc": false,
+      "county": false,
+      "cwa": false,
+      "rfc": false,
+      "state": false,
+      "menu": false,
+      "shortFusedOnly": false,
+      "opacity": {
+        "alerts": 0.0,
+        "local": 0.0,
+        "localStations": 0.0,
+        "national": 0.6
+      }
+    }));
+    zoomedRadarImage.setAttribute("src", "https://radar.weather.gov/?settings=v1_" + mapSettings);
+    zoomedRadarImage.style.width = "1230px"
+    zoomedRadarImage.style.height = "740px"
+    zoomedRadarImage.style.marginTop = "-220px"
+    zoomedRadarImage.style.overflow = "hidden"
   }
 
   scheduleTimeline();

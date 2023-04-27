@@ -1,0 +1,11 @@
+.git/
+README.md
+LICENSE
+.github/
+.gitmodules
+Dockerfile
+.dockerignore
+.gitignore
+screenshots/
+docs/
+assets/music
